@@ -1,5 +1,5 @@
 const express = require("express");
-const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+const fetch = require("node-fetch");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -26,11 +26,9 @@ app.get("/", async (req, res) => {
       },
     });
 
-    // Forward content-type header
     const contentType = response.headers.get("content-type");
     if (contentType) res.setHeader("Content-Type", contentType);
 
-    // Stream the response
     const buffer = await response.buffer();
     res.status(response.status).send(buffer);
   } catch (err) {
@@ -40,6 +38,7 @@ app.get("/", async (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Proxy running on port ${PORT}`);
+  console.log("Proxy running on port " + PORT);
 });
+
 

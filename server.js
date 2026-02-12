@@ -1,32 +1,45 @@
 const express = require("express");
-const http = require("http");
-const https = require("https");
+const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+
 const app = express();
+const PORT = process.env.PORT || 8080;
 
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
 
-app.get("/", (req, res) => {
-  const target = req.query.url;
-  if (!target) return res.status(400).send("Missing ?url= parameter");
-  const parsedUrl = new URL(target);
-  const client = parsedUrl.protocol === "https:" ? https : http;
-  const proxyReq = client.request(target, {
-    headers: { "User-Agent": "Mozilla/5.0" }
-  }, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, {
-      ...proxyRes.headers,
-      "Access-Control-Allow-Origin": "*",
+app.get("/", async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).json({ error: "Missing ?url= parameter" });
+  }
+
+  try {
+    console.log("[Proxy] Fetching:", targetUrl);
+    const response = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
     });
-    proxyRes.pipe(res);
-  });
-  proxyReq.on("error", (e) => res.status(502).send("Proxy error: " + e.message));
-  proxyReq.end();
+
+    // Forward content-type header
+    const contentType = response.headers.get("content-type");
+    if (contentType) res.setHeader("Content-Type", contentType);
+
+    // Stream the response
+    const buffer = await response.buffer();
+    res.status(response.status).send(buffer);
+  } catch (err) {
+    console.error("[Proxy] Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Proxy running on port " + PORT));
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Proxy running on port ${PORT}`);
+});
+
